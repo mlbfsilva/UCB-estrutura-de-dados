@@ -7,6 +7,8 @@
 #define MAX_LINHAS 2000
 #define MAX_ID_SENSOR 64
 
+typedef enum {TIPO_INT, TIPO_FLOAT, TIPO_BOOL, TIPO_STRING, TIPO_INVALIDO} TipoDado;
+
 typedef struct {
     long timestamp;
     char valor;
@@ -21,6 +23,33 @@ typedef struct {
 
 Sensor_t sensores[MAX_SENSORES];
 int total_sensores = 0;
+
+TipoDado detectar_tipo(const char * valor){
+    if(strcmp(valor, "true") ==0 || strcmp(valor, "false")==0)
+        return TIPO_BOOL;
+    
+    int ponto = 0;
+    int i = (valor[0] == '-')? 1: 0;
+    for(; valor[i]; i++){
+        if(valor[i] == '.'){
+            if(ponto++) return TIPO_STRING;
+        }else if(!isdigit(valor[i])){
+            return(strlen(valor)<=16) ? TIPO_STRING : TIPO_INVALIDO;
+        }
+    }
+    return (ponto == 1) ? TIPO_FLOAT : TIPO_INT;
+}
+
+const char* tipo(TipoDado tipo){
+    switch (tipo){
+        case TIPO_INT: return "int";
+        case TIPO_FLOAT: return "float";
+        case TIPO_BOOL: return "bool";
+        case TIPO_STRING: return "string";
+        default: return "desconhecido";
+    }
+
+}
 
 Sensor_t* encontrar_sensores_ou_cria(const char * id_sensor){
     for(int i = 0; i < total_sensores; i++){
@@ -101,11 +130,17 @@ int main(int argc, char* argv[]){
         char id_sensor[MAX_ID_SENSOR];
         char valor[MAX_VALOR];
 
-        if(sscanf(linha, "%ld, %s, %s", &timestamp, id_sensor, valor) ==3){
-            Sensor_t* s = encontrar_sensores_ou_cria(id_sensor);
-            adicionar_leitura(s, timestamp, valor);
-
+        if(sscanf(linha, "%ld, %s, %s", &timestamp, id_sensor, valor) !=3){
+            fprintf(stderr, "Linha inválida: %s", linha);
+            continue;
         }
+        TipoDado tipo = detectar_tipo(valor);
+        if(tipo == TIPO_INVALIDO){
+            fprintf(stderr, "Valor inválido: %s\n", valor);
+            continue;
+        }
+        Sensor_t *s = encontrar_sensores_ou_cria(id_sensor);
+        adicionar_leitura(s, timestamp, valor);
     }
 
     fclose(arquivo_entrada);
