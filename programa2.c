@@ -4,7 +4,7 @@
 #include <time.h>
 #include <math.h>
 
-#define MAX_SENSORES 2000
+#define MAX_SENSORES 8000
 
 typedef struct {
     long long timestamp;
@@ -67,5 +67,26 @@ int main(){
     scanf("%s", nome_sensor);
 
     printf("Informe a data e hora (DD MM AAAA HH MM SS):");
-    
+    scanf("%d, %d, %d, %d, %d, %d", &dia, &mes, &ano, &hora, &minuto, &segundo);
+
+    long long timestamp_alvo = converter_para_timestamp(ano, mes, dia, hora, minuto, segundo);
+
+    char nome_arquivo[20];
+    snprintf(nome_arquivo, sizeof(nome_arquivo), "%stxt", nome_sensor);
+
+    Leitura_t dados[MAX_SENSORES];
+    int total = carregar_dados(nome_arquivo, dados);
+
+    if(total == 0){
+        printf("Nenhum dado carragado.\n");
+        return 1;
+    }
+
+    int indice = busca_binaria_mais_proxima(dados, total, timestamp_alvo);
+    if(indice != -1){
+        printf("\nLeitura mais próxima encontrada:\n");
+        printf("Sensor: %s\nTimestamp: %lld\nValor: %s", nome_sensor, dados[indice].timestamp, dados[indice].valor);
+    }else {
+        printf("Nenhuma leitura encontrada.\n");
+    } return 0;
 }
