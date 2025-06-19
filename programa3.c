@@ -3,10 +3,10 @@
 #include <time.h> 
 #include <string.h>
 #include <stdbool.h>
+#include <locale.h>
 
 #define MAX_SENSORES 2000
 
-const int qtd_sensores;
 typedef enum { CONJ_Z, CONJ_Q, TEXTO, BINARIO } TipoDado;
 
 typedef struct {
@@ -22,20 +22,27 @@ typedef struct {
     int min;
 } Data;
 
+typedef struct {
+    time_t timestamp;
+    char id_sensor[50];
+    char valor[100];
+} Amostra;
+
 time_t converterData(Data data){
-    struct tm t;
-    t.tm_year = data.ano -1900;
+    struct tm t = {0};
+    t.tm_year = data.ano - 1900;
     t.tm_mon = data.mes - 1;
     t.tm_mday = data.dia;
     t.tm_hour = data.hora;
     t.tm_min = data.min;
+    t.tm_sec = 0;
+    t.tm_isdst = -1;
     return mktime(&t);
 }
 
 time_t gerarTimestampAleatorio(time_t inicio, time_t fim) {
     return inicio + rand() % (fim - inicio + 1);
 }
-
 
 void gerarValor(TipoDado tipo, char *saida) {
     const char *opcoes[] = {"ON", "OFF", "STAND BY", "OK"};
@@ -50,7 +57,7 @@ void gerarValor(TipoDado tipo, char *saida) {
             sprintf(saida, "%d", rand() % 2);
             break;
         case TEXTO:
-            sprintf(saida, "%s", opcoes[rand() % qtd_sensores]);
+            sprintf(saida, "%s", opcoes[rand() % 4]);
             break;
     }
 }
@@ -71,15 +78,13 @@ TipoDado escolhertipo(){
         case 4: return BINARIO;
         default:
             printf("Tipo inválido. Tente novamente.");
-
+            return escolhertipo();
     }
-
 }
 
-
 int main(){
-
     int qtd_leitura_sensores = 2000;
+    int qtd_sensores;
     Sensor sensores[MAX_SENSORES];
     srand(time(NULL));
 
@@ -101,7 +106,7 @@ int main(){
         return 1;
     }
 
-    printf("Quantos sensores você deseja gerar amostras?");
+    printf("Quantos sensores você deseja gerar amostras? ");
     scanf("%d", &qtd_sensores);
     getchar();
 
@@ -114,20 +119,39 @@ int main(){
 
     FILE *arquivo = fopen("dados_gerados.txt", "w");
     if(arquivo == NULL){
-    perror("Erro ao criar o arquivo.");
-    return 1;
+        perror("Erro ao criar o arquivo.");
+        return 1;
     }
 
-    char valor[100];
-    for(int i = 0; i < qtd_sensores; i++)
-    {
-        for(int j = 0; j < qtd_leitura_sensores; j++)
-        {
-            time_t timestamp = gerarTimestampAleatorio(inicio, fim);
-            gerarValor(sensores[i].tipo, valor);
-            fprintf(arquivo, "%lld %s %s\n", (long long)timestamp, sensores[i].ID_SENSOR[qtd_sensores], valor);
+    int total_amostras = qtd_sensores * qtd_leitura_sensores;
+    Amostra *amostras = malloc(sizeof(Amostra) * total_amostras);
+    if (!amostras) {
+        perror("Erro ao alocar memória para amostras");
+        return 1;
+    }
+
+    int total = 0;
+    for (int i = 0; i < qtd_sensores; i++) {
+        for (int j = 0; j < qtd_leitura_sensores; j++) {
+            amostras[total].timestamp = gerarTimestampAleatorio(inicio, fim);
+            strcpy(amostras[total].id_sensor, sensores[i].ID_SENSOR);
+            gerarValor(sensores[i].tipo, amostras[total].valor);
+            total++;
         }
     }
+
+    for (int i = total - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        Amostra temp = amostras[i];
+        amostras[i] = amostras[j];
+        amostras[j] = temp;
+    }
+
+    for (int i = 0; i < total; i++) {
+        fprintf(arquivo, "%lld;%s;%s\n", (long long)amostras[i].timestamp, amostras[i].id_sensor, amostras[i].valor);
+    }
+
+    free(amostras);
     fclose(arquivo);
     printf("\nArquivo 'dados_gerados.txt' gerado com sucesso.\n");
     return 0;
