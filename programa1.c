@@ -75,22 +75,32 @@ void abrir_arquivo(const char *arq_nome, int n_linhas, Sensor_t *sensor_array) {
         printf("Erro ao abrir arquivo.\n");
         return;
     }
+
     char linha[256];
     int linhas_lidas = 0;
+    int numero_linha = 1;
+
     while (fgets(linha, sizeof(linha), arquivo_entrada) && linhas_lidas < n_linhas) {
         long timestamp;
         char id_sensor[MAX_ID_SENSOR];
         char valor[MAX_VALOR];
-        if (sscanf(linha, "%ld;%63[^;];%63[^\n]", &timestamp, id_sensor, valor) != 3) {
-            fprintf(stderr, "Linha inválida: %s", linha);
+
+        int lida = sscanf(linha, "%ld;%63[^;];%63[^\n]", &timestamp, id_sensor, valor);
+        if (lida != 3) {
+            fprintf(stderr, "Linha inválida [%d]: %s", numero_linha, linha);
+            numero_linha++;
             continue;
         }
+
         Sensor_t *sensor = encontrar_sensor_ou_criar(id_sensor);
         adicionar_leitura(sensor, timestamp, valor);
         linhas_lidas++;
+        numero_linha++;
     }
+
     fclose(arquivo_entrada);
 }
+
 
 void ordenar_leituras_por_timestamp_decrescente(Sensor_t *sensor) {
     for (int i = 0; i < sensor->total - 1; i++) {
