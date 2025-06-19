@@ -1,13 +1,12 @@
 #include <stdio.h>
-#include <stdlib.h> 
-#include <time.h> 
+#include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include <stdbool.h>
-#include <locale.h>
 
 #define MAX_SENSORES 2000
 
-typedef enum { CONJ_Z, CONJ_Q, TEXTO, BINARIO } TipoDado;
+typedef enum { CONJ_Z, CONJ_Q, TEXTO, BINARIO, TIPO_INVALIDO } TipoDado;
 
 typedef struct {
     char ID_SENSOR[50];
@@ -15,11 +14,7 @@ typedef struct {
 } Sensor;
 
 typedef struct {
-    int dia;
-    int mes;
-    int ano;
-    int hora;
-    int min;
+    int dia, mes, ano, hora, min;
 } Data;
 
 typedef struct {
@@ -28,7 +23,7 @@ typedef struct {
     char valor[100];
 } Amostra;
 
-time_t converterData(Data data){
+time_t converterData(Data data) {
     struct tm t = {0};
     t.tm_year = data.ano - 1900;
     t.tm_mon = data.mes - 1;
@@ -38,6 +33,13 @@ time_t converterData(Data data){
     t.tm_sec = 0;
     t.tm_isdst = -1;
     return mktime(&t);
+}
+
+bool validarData(Data data) {
+    return (data.ano >= 1970 && data.mes >= 1 && data.mes <= 12 &&
+            data.dia >= 1 && data.dia <= 31 &&
+            data.hora >= 0 && data.hora <= 23 &&
+            data.min >= 0 && data.min <= 59);
 }
 
 time_t gerarTimestampAleatorio(time_t inicio, time_t fim) {
@@ -58,6 +60,9 @@ void gerarValor(TipoDado tipo, char *saida) {
             break;
         case TEXTO:
             sprintf(saida, "%s", opcoes[rand() % 4]);
+            break;
+        default:
+            strcpy(saida, "INVALIDO");
             break;
     }
 }
@@ -82,51 +87,72 @@ TipoDado escolhertipo(){
     }
 }
 
-int main(){
+int quantidadeSensores(){
+    printf("Quantos sensores deseja gerar? ");
+    int qtd_sensores;
+    if (scanf("%d", &qtd_sensores) != 1 || qtd_sensores <= 0 || qtd_sensores > MAX_SENSORES) {
+        printf("Quantidade de sensores inválida.\n");
+        return quantidadeSensores();
+    }
+    return qtd_sensores;
+}
+
+int main() {
     int qtd_leitura_sensores = 2000;
     int qtd_sensores;
     Sensor sensores[MAX_SENSORES];
     srand(time(NULL));
 
     printf("\n--------- Programa 03 ---------\n");
-    printf("Descrição: Programa responsável por gerar amostras de sensores.\n\n");
 
     Data inicioData, fimData;
+    char nome_arquivo[100];
 
     printf("Digite o início do intervalo (DD MM AAAA HH MM): ");
-    scanf("%d %d %d %d %d", &inicioData.dia, &inicioData.mes, &inicioData.ano, &inicioData.hora, &inicioData.min);
+    if (scanf("%d %d %d %d %d", &inicioData.dia, &inicioData.mes, &inicioData.ano,
+              &inicioData.hora, &inicioData.min) != 5 || !validarData(inicioData)) {
+        printf("Data inicial inválida.\n");
+        return 1;
+    }
+
     printf("Digite o fim do intervalo (DD MM AAAA HH MM): ");
-    scanf("%d %d %d %d %d", &fimData.dia, &fimData.mes, &fimData.ano, &fimData.hora, &fimData.min);
+    if (scanf("%d %d %d %d %d", &fimData.dia, &fimData.mes, &fimData.ano,
+              &fimData.hora, &fimData.min) != 5 || !validarData(fimData)) {
+        printf("Data final inválida.\n");
+        return 1;
+    }
 
     time_t inicio = converterData(inicioData);
     time_t fim = converterData(fimData);
-
     if (fim <= inicio) {
         printf("Erro: a data final deve ser maior que a inicial.\n");
         return 1;
     }
+    quantidadeSensores();
+    
+    getchar(); // Limpar o buffer
 
-    printf("Quantos sensores você deseja gerar amostras? ");
-    scanf("%d", &qtd_sensores);
-    getchar();
-
-    for(int i = 0; i < qtd_sensores; i++){
+    for (int i = 0; i < qtd_sensores; i++) {
         printf("\nSensor Nº%d:\n", i + 1);
-        printf("Digite o ID do sensor(nome): ");
+        printf("Digite o ID do sensor: ");
         scanf("%s", sensores[i].ID_SENSOR);
         sensores[i].tipo = escolhertipo();
+        if (sensores[i].tipo == TIPO_INVALIDO) return 1;
     }
 
-    FILE *arquivo = fopen("dados_gerados.txt", "w");
-    if(arquivo == NULL){
-        perror("Erro ao criar o arquivo.");
+    printf("Digite o nome do arquivo para salvar os dados (ex: dados.txt): ");
+    scanf("%s", nome_arquivo);
+
+    FILE *arquivo = fopen(nome_arquivo, "w");
+    if (!arquivo) {
+        perror("Erro ao criar o arquivo");
         return 1;
     }
 
-    int total_amostras = qtd_sensores * qtd_leitura_sensores;
-    Amostra *amostras = malloc(sizeof(Amostra) * total_amostras);
+    Amostra *amostras = malloc(sizeof(Amostra) * qtd_sensores * qtd_leitura_sensores);
     if (!amostras) {
-        perror("Erro ao alocar memória para amostras");
+        perror("Erro ao alocar memória");
+        fclose(arquivo);
         return 1;
     }
 
@@ -148,11 +174,12 @@ int main(){
     }
 
     for (int i = 0; i < total; i++) {
-        fprintf(arquivo, "%lld;%s;%s\n", (long long)amostras[i].timestamp, amostras[i].id_sensor, amostras[i].valor);
+        fprintf(arquivo, "%lld;%s;%s\n", (long long)amostras[i].timestamp,
+                amostras[i].id_sensor, amostras[i].valor);
     }
 
     free(amostras);
     fclose(arquivo);
-    printf("\nArquivo 'dados_gerados.txt' gerado com sucesso.\n");
+    printf("\nArquivo '%s' gerado com sucesso.\n", nome_arquivo);
     return 0;
 }
